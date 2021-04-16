@@ -1,16 +1,18 @@
-const ONE_DAY = 24 * 60 * 60 * 1000;
-const DO_NOT_DELETE_KEY_NEWER_THAN_MILLIS = parseInt(process.env.KEY_MAX_AGE_MILLIS, 10) || 6 * ONE_DAY;
-const KEY_MAX_AGE_MILLIS = parseInt(process.env.KEY_MAX_AGE_MILLIS, 10) || 45 * ONE_DAY;
-const USERNAME = process.env.USERNAME || "";
-const SECRETMANAGER_NAME = process.env.SECRETMANAGER_NAME || ""
-const AWS_ACCOUNT_ID = process.env.AWS_ACCOUNT_ID || ""
-const AWS_ACCOUNT_NAME = process.env.AWS_ACCOUNT_NAME || ""
+const csvFilePathArr = [
+  //"/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/2021mov.csv",
+  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/2020ibkr.csv",
+  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/2020revolut.csv",
+  //"/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/extra2020.csv",
+  //"/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/mov.csv",
+  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/movEUR.csv"
+]
+const csvFilePathDivArr = [
+  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/div.csv"
+]
 
 module.exports = {
-  KEY_MAX_AGE_MILLIS,
-  DO_NOT_DELETE_KEY_NEWER_THAN_MILLIS,
-  SECRETMANAGER_NAME,
-  USERNAME,
-  AWS_ACCOUNT_ID,
-  AWS_ACCOUNT_NAME,
+  csvFilePathDivArr,
+  csvFilePathArr,
+  startDate: "20200000",
+  endDate: "20210000"
 };
