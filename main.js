@@ -249,7 +249,7 @@ const run = async () => {
     helpers.currency("  --> sellPriceEUR = " + Math.abs(amount).toFixed(2).toString() + "/" + getEURUDChangeByDate(x, ctx) + " = " + sellPriceEUR + " EUR");
     ctx.currencyResult.buyPriceEUR += buyPriceEUR;
     ctx.currencyResult.sellPriceEUR += sellPriceEUR;
-    if (fifoAmount.source.Type == "CASH_TRD" && amount >= fifoAmount.amount && Math.abs(fifoAmount.source.Fee)>0) {
+    if (fifoAmount.source.Type == "CASH_TRD" && amount >= fifoAmount.amount && Math.abs(fifoAmount.source.Fee) > 0) {
       // only last one pays fee
       ctx.currencyResult.buyFeeEUR += fifoAmount.source.Fee / getEURUDChangeByDate(fifoAmount.source, ctx);
       helpers.currency("  --> buyFeeEUR = " + Math.abs(fifoAmount.source.Fee).toFixed(2).toString() + "/" + getEURUDChangeByDate(x, ctx) + " = " + (fifoAmount.source.Fee / getEURUDChangeByDate(fifoAmount.source, ctx)) + " EUR");
@@ -342,19 +342,43 @@ const run = async () => {
   }
 
   console.time(TIMER);
-  helpers.notice('=== Starting AEAT calculation for 2020 ===');
+  helpers.notice('=== Lanzando calculadora AEAT ejercicio 2020 ===');
   const sources = importSources();
   let context = await createContext();
   sources.forEach(x => processMovement(x, context));
+
+  helpers.error("---------- RESULTADOS TOTALES ----");
   helpers.error("optionResult: " + JSON.stringify(context.optionResult, null, 2));
   helpers.error("stockResult: " + JSON.stringify(context.stockResult, null, 2));
   helpers.error("currencyResult: " + JSON.stringify(context.currencyResult, null, 2));
   helpers.error("dividendResult: " + JSON.stringify(context.dividendResult, null, 2));
-  helpers.error("----------")
+
+  helpers.error("---------- CADA CONYUGE ----------");
+  let casilla29 = {};
+  casilla29.ingresoIntegro = context.dividendResult.ingresoIntegro / 2;
+  casilla29.retenciones = context.dividendResult.retenciones / 2;
+  casilla29.gastos = context.dividendResult.gastos / 2;
+  let casilla328 = {};
+  casilla328.valorTransmision = (context.stockResult.sellPriceEUR - Math.abs(context.stockResult.sellFeeEUR)) / 2;
+  casilla328.valorAdquisicion = (context.stockResult.buyPriceEUR + Math.abs(context.stockResult.buyFeeEUR)) / 2;
+  let casilla588 = {};
+  casilla588.extranjero = context.dividendResult.extranjero / 2;
+  casilla588.impuestoExtranjero = context.dividendResult.impuestoExtranjero / 2;
+  let casilla1631 = {};
+  casilla1631.importeTransmision = (context.optionResult.sellPriceEUR + context.currencyResult.sellPriceEUR) / 2;
+  casilla1631.gastosTransmision = (context.optionResult.sellFeeEUR + context.currencyResult.sellFeeEUR) / 2;
+  casilla1631.importeAdquisicion = (context.optionResult.buyPriceEUR + context.currencyResult.buyPriceEUR) / 2;
+  casilla1631.gastosAdquisicion = (context.optionResult.buyFeeEUR + context.currencyResult.buyFeeEUR) / 2;
+  helpers.error("casilla29: " + JSON.stringify(casilla29, null, 2));
+  helpers.error("casilla328: " + JSON.stringify(casilla328, null, 2));
+  helpers.error("casilla588: " + JSON.stringify(casilla588, null, 2));
+  helpers.error("casilla1631: " + JSON.stringify(casilla1631, null, 2));
+
+  helpers.error("---------- ESTADO FIFO (para el siguiente ejercicio) ----------");
   helpers.notice("stockFIFO: "); context.stockFIFO.forEach(x => helpers.notice(+x.Shares + " x " + x.Name));
   helpers.error("----------");
   helpers.notice("currencyFIFO: "); context.currencyFIFO.forEach(x => helpers.notice("[" + x.source.Date + "] " + +x.amount + " x " + x.source.Name + " @ " + (x.source.Type == "CASH_TRD" ? x.source.Price : getEURUDChangeByDate(x.source, context))));
-  helpers.error("----------")
+  helpers.error("----------");
   helpers.notice("currencyDiferidoFIFO: "); context.currencyDiferidoFIFO.forEach(x => helpers.notice("[" + x.src.Date + "] " + +x.amount + " " + x.src.Currency + " x " + x.src.Name));
   console.timeEnd(TIMER);
 }
