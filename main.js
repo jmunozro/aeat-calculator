@@ -48,6 +48,7 @@ const run = async () => {
   const orderMovementsJSON = (arr) => {
     return arr.sort((a, b) => {
       if (a.Date == b.Date) {
+        if (a.Hour == undefined) helpers.warn("Undefined:" + JSON.stringify(a, null, 2))
         a_split = a.Hour.split(':');
         b_split = b.Hour.split(':');
         if (a_split[0] == b_split[0]) {
@@ -76,16 +77,18 @@ const run = async () => {
       .fieldDelimiter(',')
       .getJsonFromCsv(csvFilePath);
 
-    jsonArray.forEach(x => {
+    const processDivTaxReport = x => {
       x.Type = x.Currency == "USD" ? "DIV_USD" : "DIV_EUR";
-      x.Name = x.Symbol;
-      x.Date = x.ReportDate;
+      x.Name = x.Symbol || (x.Description + "(" + x.Dividends + ")");
+      x.Date = (x.ReportDate || x.Date).replaceAll('-', '');
       x.Hour = "00:00:00";
       x.Shares = 1;
       x.Mult = 1;
-      x.Price = x.Gross;
-      x.Fee = x.Withhold;
-    });
+      x.Price = x.Gross || (x.Dividends == "Dividends" ? x.Amount : "0");
+      x.Fee = x.Withhold || (x.Dividends == "Withholding Tax" ? x.Amount : "0");
+    };
+
+    jsonArray.forEach(x => processDivTaxReport(x));
 
     return jsonArray;
   }
@@ -99,12 +102,16 @@ const run = async () => {
       if (x.Date == "20210405") {
         return ctx.EURUSDResultmap["20210401"];
       }
+      if (x.Date == "20211231") {
+        return ctx.EURUSDResultmap["20211126"];
+      }
       helpers.error("[ERROR] " + ctx.EURUSDResultmap[x.Date] + ": EURUSDResultmap for " + x.Date + " while processing " + x.Type + "/" + x.Name);
+      return 1; //this should never happen, but in case it happens it is better an approximate than NaN
     }
     return ctx.EURUSDResultmap[x.Date];
   }
   const addDividend = (x, ctx) => {
-    helpers.dividend("[" + x.Date + "] [Dividendo] Nuevo apunte " + x.Type + "/" + x.Name + ": " + x.Price + " " + x.Currency + " bruto " + x.Withhold + " tax = " + (+x.Price + +x.Withhold));
+    helpers.dividend("[" + x.Date + "] [Dividendo] Nuevo apunte " + x.Type + "/" + x.Name + ": " + x.Price + " " + x.Currency + " bruto " + x.Fee + " tax = " + (+x.Price + +x.Fee));
     //let dividendResult = { ingresoIntegro: 0, retenciones: 0, gastos: 0, extranjero: 0, impuestoExtranjero: 0 };
     // Suma de todos los dividendos recibidos. Extranjeros y Españoles. En euros y cantidad bruta
     if (x.Date < ctx.startDate || x.Date > ctx.endDate) {
@@ -114,7 +121,7 @@ const run = async () => {
     ctx.dividendResult.ingresoIntegro += x.Price / getEURUDChangeByDate(x, ctx);
     if (x.Name == "FRA:H4ZM") {
       // Retenciones: la retención practicada en destino. Extranjeros y Españoles. En euros
-      ctx.dividendResult.retenciones += x.Withhold / getEURUDChangeByDate(x, ctx);
+      ctx.dividendResult.retenciones += x.Fee / getEURUDChangeByDate(x, ctx);
     }
     if (x.Currency == "USD") {
       // Rendimientos netos reducidos del capital mobiliario obtenidos en el extranjeros incluidos en la base del ahorro
@@ -122,7 +129,7 @@ const run = async () => {
       ctx.dividendResult.extranjero += x.Price / getEURUDChangeByDate(x, ctx);
       // Impuesto satisfecho en el extranjero
       // 588 – Deducciones por doble imposición internacional, por razón de las rentas obtenidas y gravadas en el extranjero
-      ctx.dividendResult.impuestoExtranjero += x.Withhold / getEURUDChangeByDate(x, ctx);
+      ctx.dividendResult.impuestoExtranjero += x.Fee / getEURUDChangeByDate(x, ctx);
     }
 
     return;
@@ -139,7 +146,7 @@ const run = async () => {
   }
   const removeCurrencyFIFO = (x, amount, ctx) => {
     if (ctx.currencyFIFO.length == 0 || amount == 0) return;
-    const diferido = x.Action == "BUYTOOPEN";
+    const diferido = x.Action == "BUYTOOPEN" && x.Type != "CASH_TRD";
     const fifoAmount = ctx.currencyFIFO[0];
     if (amount >= fifoAmount.amount) {
       printCurrencyOperationResult(x, fifoAmount.amount, fifoAmount, "[Moneda] Cancelado total posicion fifo (quedan por cancelar " + (amount - fifoAmount.amount) + ") ", diferido, ctx);
@@ -182,7 +189,7 @@ const run = async () => {
     } else if (fifoShares > movShares) {
       if (x.Action == "SELLTOCLOSE" && x.Currency == "USD") {
         helpers.error("ERROR: Cierre diferido moneda NO IMPLEMENTADO " + x.Name + " " + movShares + "/" + fifoShares);
-        helpers.error("  --> Por favor manipula el movimiento de compra manualmente")
+        helpers.error("  --> Por favor manipula el movimiento de compra manualmente");
       }
       //no contar fee del fifoShares, ya que no se cancela
       printOperationResult(x, ctx.stockFIFO[idx], movShares, movShares, "[Stock] Cancelado parcial apunte", ctx);
@@ -194,6 +201,7 @@ const run = async () => {
     } else if (fifoShares < movShares) {
       if (x.Action == "SELLTOCLOSE" && x.Currency == "USD") {
         helpers.error("Cierre diferido moneda NO IMPLEMENTADO " + x.Name);
+        helpers.error("  --> Por favor manipula el movimiento de venta manualmente");
       }
       //no contar fee del movShares, ya que no se cancela
       printOperationResult(x, ctx.stockFIFO[idx], fifoShares, fifoShares, "[Stock] Cancelado total apunte", ctx);
@@ -210,10 +218,10 @@ const run = async () => {
     return;
   }
   const createContext = async () => {
-    let stockResult = { buyPriceEUR: 0, buyFeeEUR: 0, sellPriceEUR: 0, sellFeeEUR: 0 };
-    let optionResult = { buyPriceEUR: 0, buyFeeEUR: 0, sellPriceEUR: 0, sellFeeEUR: 0 };
-    let currencyResult = { buyPriceEUR: 0, buyFeeEUR: 0, sellPriceEUR: 0, sellFeeEUR: 0 };
-    let dividendResult = { ingresoIntegro: 0, retenciones: 0, gastos: 10, extranjero: 0, impuestoExtranjero: 0 };
+    let stockResult = { buyPriceEUR: 0, buyFeeEUR: 0, sellPriceEUR: 0, sellFeeEUR: 0, totalEUR: 0 };
+    let optionResult = { buyPriceEUR: 0, buyFeeEUR: 0, sellPriceEUR: 0, sellFeeEUR: 0, totalEUR: 0 };
+    let currencyResult = { buyPriceEUR: 0, buyFeeEUR: 0, sellPriceEUR: 0, sellFeeEUR: 0, totalEUR: 0 };
+    let dividendResult = { ingresoIntegro: 0, retenciones: 0, gastos: 7.5, extranjero: 0, impuestoExtranjero: 0 };
     const EURUSDResultmap = await getEURExchangeRates();
     return { EURUSDResultmap, currencyFIFO: [], stockFIFO: [], stockResult, optionResult, currencyResult, currencyDiferidoFIFO: [], dividendResult, startDate, endDate };
   }
@@ -281,21 +289,30 @@ const run = async () => {
       ctx.optionResult.buyFeeEUR += buyFeeEUR;
       ctx.optionResult.sellPriceEUR += sellPriceEUR;
       ctx.optionResult.sellFeeEUR += sellFeeEUR;
+      ctx.optionResult.totalEUR += (sellPriceEUR - buyPriceEUR + buyFeeEUR + sellFeeEUR);
     } else if (x.Type == "STK_TRD") {
       ctx.stockResult.buyPriceEUR += buyPriceEUR;
       ctx.stockResult.buyFeeEUR += buyFeeEUR;
       ctx.stockResult.sellPriceEUR += sellPriceEUR;
       ctx.stockResult.sellFeeEUR += sellFeeEUR;
+      ctx.stockResult.totalEUR += (sellPriceEUR - buyPriceEUR + buyFeeEUR + sellFeeEUR);
+      if (buyPriceEUR + buyFeeEUR > sellPriceEUR - sellFeeEUR) {
+        helpers.warn("      -------> PERDIDA PATRIMONIAL");
+      }
     } else {
       helpers.error("[ERROR] Type=" + x.Type);
       return;
     }
-    helpers.stock("  --> buyPriceEUR = " + Math.abs(x.Price * sharesX * x.Mult).toFixed(2).toString() + "/" + getEURUDChangeByDate(x, ctx) + " = " + buyPriceEUR + " EUR");
-    helpers.stock("  --> sellPriceEUR = " + Math.abs(y.Price * sharesY * y.Mult).toFixed(2).toString() + "/" + getEURUDChangeByDate(y, ctx) + " = " + sellPriceEUR + " EUR");
-    helpers.stock("  --> P/G = " + sellPriceEUR.toFixed(2).toString() + "-" + buyPriceEUR.toFixed(2).toString() + (Math.sign(sellFeeEUR) >= 0 ? "+" : "") + sellFeeEUR.toFixed(2).toString() + (Math.sign(buyFeeEUR) >= 0 ? "+" : "") + buyFeeEUR.toFixed(2).toString() + " = " + (sellPriceEUR - buyPriceEUR + sellFeeEUR + buyFeeEUR) + " EUR");
+    helpers.stock(`  --> buyPriceEUR = ${Math.abs(x.Price * sharesX * x.Mult).toFixed(2).toString()}/${getEURUDChangeByDate(x, ctx)} = ${buyPriceEUR} EUR`);
+    helpers.stock(`  --> sellPriceEUR = ${Math.abs(y.Price * sharesY * y.Mult).toFixed(2).toString()}/${getEURUDChangeByDate(y, ctx)} = ${sellPriceEUR} EUR`);
+    helpers.stock(`  --> P/G = ${sellPriceEUR.toFixed(2).toString()}-${buyPriceEUR.toFixed(2).toString()}${Math.sign(sellFeeEUR) >= 0 ? "+" : ""}${sellFeeEUR.toFixed(2).toString()}${Math.sign(buyFeeEUR) >= 0 ? "+" : ""}${buyFeeEUR.toFixed(2).toString()} = ${sellPriceEUR - buyPriceEUR + sellFeeEUR + buyFeeEUR} EUR`);
     return;
   }
   const processMovement = (x, ctx) => {
+    if (x.Date > ctx.endDate) {
+      helpers.stock(`[${x.Date}] ${x.Type}/${x.Name}  --> Movimiento futuro, no importado`);
+      return;
+    }
     if (x.Type == "DIV_USD") {
       addDividend(x, ctx);
       addCurrencyFIFO(x, ctx);
@@ -307,7 +324,12 @@ const run = async () => {
     }
     if (x.Type == "CASH_TRD") {
       if (x.Action == "SELLTOOPEN") {
+        //compra dolares
         addCurrencyFIFO(x, ctx);
+        return;
+      } else if (x.Action == "BUYTOOPEN") {
+        //compra euros
+        removeCurrencyFIFO(x, x.Price * x.Shares * x.Mult, ctx);
         return;
       }
     }
@@ -347,13 +369,13 @@ const run = async () => {
   let context = await createContext();
   sources.forEach(x => processMovement(x, context));
 
-  helpers.error("---------- RESULTADOS TOTALES ----");
-  helpers.error("optionResult: " + JSON.stringify(context.optionResult, null, 2));
-  helpers.error("stockResult: " + JSON.stringify(context.stockResult, null, 2));
-  helpers.error("currencyResult: " + JSON.stringify(context.currencyResult, null, 2));
-  helpers.error("dividendResult: " + JSON.stringify(context.dividendResult, null, 2));
+  helpers.red("---------- RESULTADOS TOTALES ----");
+  helpers.red("optionResult: " + JSON.stringify(context.optionResult, null, 2));
+  helpers.red("stockResult: " + JSON.stringify(context.stockResult, null, 2));
+  helpers.red("currencyResult: " + JSON.stringify(context.currencyResult, null, 2));
+  helpers.red("dividendResult: " + JSON.stringify(context.dividendResult, null, 2));
 
-  helpers.error("---------- CADA CONYUGE ----------");
+  helpers.red("---------- CADA CONYUGE ----------");
   let casilla29 = {};
   casilla29.ingresoIntegro = context.dividendResult.ingresoIntegro / 2;
   casilla29.retenciones = context.dividendResult.retenciones / 2;
@@ -369,17 +391,18 @@ const run = async () => {
   casilla1631.gastosTransmision = (context.optionResult.sellFeeEUR + context.currencyResult.sellFeeEUR) / 2;
   casilla1631.importeAdquisicion = (context.optionResult.buyPriceEUR + context.currencyResult.buyPriceEUR) / 2;
   casilla1631.gastosAdquisicion = (context.optionResult.buyFeeEUR + context.currencyResult.buyFeeEUR) / 2;
-  helpers.error("casilla29: " + JSON.stringify(casilla29, null, 2));
-  helpers.error("casilla328: " + JSON.stringify(casilla328, null, 2));
-  helpers.error("casilla588: " + JSON.stringify(casilla588, null, 2));
-  helpers.error("casilla1631: " + JSON.stringify(casilla1631, null, 2));
+  helpers.red("casilla29: " + JSON.stringify(casilla29, null, 2));
+  helpers.red("casilla328: " + JSON.stringify(casilla328, null, 2));
+  helpers.red("casilla588: " + JSON.stringify(casilla588, null, 2));
+  helpers.red("casilla1631: " + JSON.stringify(casilla1631, null, 2));
 
-  helpers.error("---------- ESTADO FIFO (para el siguiente ejercicio) ----------");
+  helpers.red("---------- ESTADO FIFO (para el siguiente ejercicio) ----------");
   helpers.notice("stockFIFO: "); context.stockFIFO.forEach(x => helpers.notice(+x.Shares + " x " + x.Name));
-  helpers.error("----------");
+  helpers.red("----------");
   helpers.notice("currencyFIFO: "); context.currencyFIFO.forEach(x => helpers.notice("[" + x.source.Date + "] " + +x.amount + " x " + x.source.Name + " @ " + (x.source.Type == "CASH_TRD" ? x.source.Price : getEURUDChangeByDate(x.source, context))));
-  helpers.error("----------");
-  helpers.notice("currencyDiferidoFIFO: "); context.currencyDiferidoFIFO.forEach(x => helpers.notice("[" + x.src.Date + "] " + +x.amount + " " + x.src.Currency + " x " + x.src.Name));
+  helpers.red("----------");
+  helpers.notice("currencyDiferidoFIFO (No se apunta hasta cierre de posicion subyacente): "); context.currencyDiferidoFIFO.forEach(x => helpers.notice("[" + x.src.Date + "] " + +x.amount + " " + x.src.Currency + " x " + x.src.Name));
+  helpers.errArr.forEach(x => helpers.red(x));
   console.timeEnd(TIMER);
 }
 

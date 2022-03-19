@@ -1,13 +1,17 @@
 const csvFilePathArr = [
-  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/2021mov.csv",
-  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/2020ibkr.csv",
-  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/2020revolut.csv",
-  //"/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/extra2020.csv",
-  //"/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/mov.csv",
-  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/movEUR.csv"
+  "U4250125_20210104_20211231.tlg",
+  "U7250125_20210108_20211231.tlg",
+  "2020ibkr.csv",
+  "2020revolut.csv",
+  "2020movEUR.csv",
 ]
+
 const csvFilePathDivArr = [
-  "/Users/jesusmunoz/Desktop/workspace/jesus/node-alerts/src/aeat-calculator/div.csv"
+  "2020div.csv",
+  "U4250125.2021.dividends.csv",
+  "U7250125.2021.dividends.csv",
+  "U7250125.2021.dividends.pil.csv",
+  "2021.degiro.dividends.csv",
 ]
 
 module.exports = {

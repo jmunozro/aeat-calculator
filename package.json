@@ -11,7 +11,9 @@
   "author": "Travis Perkins Plc",
   "license": "ISC",
   "dependencies": {
+    "chalk": "^4.1.1",
     "convert-csv-to-json": "^1.3.0",
+    "fs": "^0.0.1-security",
     "unirest": "^0.6.0",
     "xml2js": "^0.4.23"
   }

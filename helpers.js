@@ -1,7 +1,9 @@
 const chalk = require('chalk');
 const DEBUG = process.env.DEBUG || ""
+let errArr = []
 
 global = {
+  errArr,
   debug: x => {
     if (DEBUG == "1") {
       console.log(chalk.cyan(x));
@@ -23,7 +25,11 @@ global = {
   },
   options: x => console.log(chalk.bold.green(x)),
   warn: x => console.log(chalk.bold.italic.yellow(x)),
-  error: x => console.log(chalk.bold.hex('#FFFF00').bgRed(x)),
+  red: x => console.log(chalk.bold.hex('#FFFF00').bgRed(x)),
+  error: x => {
+    console.log(chalk.bold.hex('#FFFF00').bgRed(x));
+    errArr.push(x);
+  },
   responseIsOk: response => response.body && response.code && response.cookies,
 };
 
