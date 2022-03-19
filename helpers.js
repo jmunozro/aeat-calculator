@@ -1,6 +1,7 @@
 const chalk = require('chalk');
 const DEBUG = process.env.DEBUG || ""
-let errArr = []
+let errArr = [];
+let lastEntry = "";
 
 global = {
   errArr,
@@ -17,10 +18,16 @@ global = {
   stock: x => {
     if (x.includes("Opciones")) {
       console.log(chalk.bold.green(x));
+      lastEntry = "Opciones";
     } else if (x.includes("Acciones")){
       console.log(chalk.bold.magenta(x));
+      lastEntry = "Acciones";
     } else {
-      console.log(chalk.bold.red(x));
+      if(lastEntry == "Opciones"){
+        console.log(chalk.bold.green(x));
+      }else{
+        console.log(chalk.bold.magenta(x));
+      }
     }
   },
   options: x => console.log(chalk.bold.green(x)),

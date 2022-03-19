@@ -111,11 +111,11 @@ const run = async () => {
     return ctx.EURUSDResultmap[x.Date];
   }
   const addDividend = (x, ctx) => {
-    helpers.dividend("[" + x.Date + "] [Dividendo] Nuevo apunte " + x.Type + "/" + x.Name + ": " + x.Price + " " + x.Currency + " bruto " + x.Fee + " tax = " + (+x.Price + +x.Fee));
+    helpers.dividend("[        ] [Dividendo] Nuevo apunte " + x.Type + "/" + x.Name + ": " + x.Price + " " + x.Currency + " bruto " + x.Fee + " tax = " + (+x.Price + +x.Fee));
     //let dividendResult = { ingresoIntegro: 0, retenciones: 0, gastos: 0, extranjero: 0, impuestoExtranjero: 0 };
     // Suma de todos los dividendos recibidos. Extranjeros y Españoles. En euros y cantidad bruta
     if (x.Date < ctx.startDate || x.Date > ctx.endDate) {
-      helpers.currency("  --> Movimiento no incluido en el resultado final");
+      helpers.dividend("[        ]  --> Movimiento no incluido en el resultado final");
       return;
     }
     ctx.dividendResult.ingresoIntegro += x.Price / getEURUDChangeByDate(x, ctx);
@@ -141,7 +141,7 @@ const run = async () => {
       amount: amount,
       source: x
     });
-    helpers.currency("[" + x.Date + "] [Moneda] Nuevo apunte " + x.Type + "/" + x.Name + ": " + amount + " " + x.Currency + " @ " + (x.Type == "CASH_TRD" ? x.Price : getEURUDChangeByDate(x, ctx)));
+    helpers.currency("[        ] [Moneda] Nuevo apunte " + x.Type + "/" + x.Name + ": " + amount + " " + x.Currency + " @ " + (x.Type == "CASH_TRD" ? x.Price : getEURUDChangeByDate(x, ctx)));
     return;
   }
   const removeCurrencyFIFO = (x, amount, ctx) => {
@@ -160,7 +160,7 @@ const run = async () => {
   }
   const addStockFIFO = (x, ctx) => {
     ctx.stockFIFO.push(x);
-    helpers.stock("[" + x.Date + "] [" + (x.Type == "OPT_TRD" ? "Opciones" : "Acciones") + "] Nuevo apunte " + x.Type + "/" + x.Name + ": " + x.Shares + "x" + Math.abs(x.Price * x.Mult) + " = " + Math.abs(x.Price * x.Shares * x.Mult) + " " + x.Currency + " @ " + getEURUDChangeByDate(x, ctx));
+    helpers.stock("[        ] [" + (x.Type == "OPT_TRD" ? "Opciones" : "Acciones") + "] Nuevo apunte " + x.Type + "/" + x.Name + ": " + x.Shares + "x" + Math.abs(x.Price * x.Mult) + " = " + Math.abs(x.Price * x.Shares * x.Mult) + " " + x.Currency + " @ " + getEURUDChangeByDate(x, ctx));
     return;
   }
   const removeStockFIFO = (x, ctx, includeCurrency) => {
@@ -177,7 +177,11 @@ const run = async () => {
         removeCurrencyFIFO(x, (x.Price * movShares * x.Mult) + +x.Fee, ctx);
       }
       if (x.Action == "SELLTOCLOSE" && x.Currency == "USD") {
-        helpers.currency("     --> Recuperado apuntes diferidos moneda en operacion compra:");
+        if (ctx.currencyDiferidoFIFO
+          .filter(x => ctx.stockFIFO[idx].Name == x.src.Name && ctx.stockFIFO[idx].Shares == x.src.Shares)
+          .length > 0) {
+          helpers.currency("[        ]  --> Recuperado apuntes diferidos moneda en operacion compra:");
+        }
         ctx.currencyDiferidoFIFO
           .filter(x => ctx.stockFIFO[idx].Name == x.src.Name && ctx.stockFIFO[idx].Shares == x.src.Shares)
           .forEach(x => {
@@ -189,19 +193,19 @@ const run = async () => {
     } else if (fifoShares > movShares) {
       if (x.Action == "SELLTOCLOSE" && x.Currency == "USD") {
         helpers.error("ERROR: Cierre diferido moneda NO IMPLEMENTADO " + x.Name + " " + movShares + "/" + fifoShares);
-        helpers.error("  --> Por favor manipula el movimiento de compra manualmente");
+        helpers.error("[        ]  --> Por favor manipula el movimiento de compra manualmente");
       }
       //no contar fee del fifoShares, ya que no se cancela
       printOperationResult(x, ctx.stockFIFO[idx], movShares, movShares, "[Stock] Cancelado parcial apunte", ctx);
       ctx.stockFIFO[idx].Shares = +ctx.stockFIFO[idx].Shares + +x.Shares
-      //helpers.stock("[" + x.Date + "] [Stock] Cancelado parcial apunte " + x.Type + "/" + x.Name + ": " + x.Shares + "x" + Math.abs(x.Price * x.Shares * x.Mult) + " @ " + getEURUDChangeByDate(x, ctx));
+      //helpers.stock("[        ] [Stock] Cancelado parcial apunte " + x.Type + "/" + x.Name + ": " + x.Shares + "x" + Math.abs(x.Price * x.Shares * x.Mult) + " @ " + getEURUDChangeByDate(x, ctx));
       if (includeCurrency) {
         removeCurrencyFIFO(x, (x.Price * movShares * x.Mult) + +x.Fee, ctx);
       }
     } else if (fifoShares < movShares) {
       if (x.Action == "SELLTOCLOSE" && x.Currency == "USD") {
         helpers.error("Cierre diferido moneda NO IMPLEMENTADO " + x.Name);
-        helpers.error("  --> Por favor manipula el movimiento de venta manualmente");
+        helpers.error("[        ]  --> Por favor manipula el movimiento de venta manualmente");
       }
       //no contar fee del movShares, ya que no se cancela
       printOperationResult(x, ctx.stockFIFO[idx], fifoShares, fifoShares, "[Stock] Cancelado total apunte", ctx);
@@ -242,27 +246,27 @@ const run = async () => {
     const buyChangeRate = fifoAmount.source.Type == "CASH_TRD" ? fifoAmount.source.Price : getEURUDChangeByDate(fifoAmount.source, ctx);
     const buyPriceEUR = Math.abs(amount) / buyChangeRate;
     const sellPriceEUR = Math.abs(amount) / getEURUDChangeByDate(x, ctx);
-    helpers.currency("[" + x.Date + "] " + msg + " " + fifoAmount.source.Type + "/" + fifoAmount.source.Name + " [" + fifoAmount.source.Date + "]: " + amount + " " + fifoAmount.source.Currency + " @ " + buyChangeRate);
+    helpers.currency("[        ] " + msg + " " + fifoAmount.source.Type + "/" + fifoAmount.source.Name + " [" + fifoAmount.source.Date + "]: " + amount + " " + fifoAmount.source.Currency + " @ " + buyChangeRate);
     if (x.Date < ctx.startDate || x.Date > ctx.endDate) {
-      helpers.currency("  --> Movimiento no incluido en el resultado final");
+      helpers.currency("[        ]  --> Movimiento no incluido en el resultado final");
       return;
     }
     if (diferido) {
       ctx.currencyDiferidoFIFO.push({ src: x, amount, fifoAmount, msg });
-      helpers.warn("  --> Aviso: Apunte moneda " + amount + " " + x.Currency + " x " + x.Name + " diferido hasta cierre de posición");
-      helpers.warn("  --> P/G no será añadido al total hasta cierre de movimiento");
+      helpers.warn("[        ]  --> Aviso: Apunte moneda " + amount + " " + x.Currency + " x " + x.Name + " diferido hasta cierre de posición");
+      helpers.warn("[        ]  --> P/G no será añadido al total hasta cierre de movimiento");
       return;
     }
-    helpers.currency("  --> buyPriceEUR = " + Math.abs(amount).toFixed(2).toString() + "/" + buyChangeRate + " = " + buyPriceEUR + " EUR");
-    helpers.currency("  --> sellPriceEUR = " + Math.abs(amount).toFixed(2).toString() + "/" + getEURUDChangeByDate(x, ctx) + " = " + sellPriceEUR + " EUR");
+    helpers.currency("[        ]  --> buyPriceEUR = " + Math.abs(amount).toFixed(2).toString() + "/" + buyChangeRate + " = " + buyPriceEUR + " EUR");
+    helpers.currency("[        ]  --> sellPriceEUR = " + Math.abs(amount).toFixed(2).toString() + "/" + getEURUDChangeByDate(x, ctx) + " = " + sellPriceEUR + " EUR");
     ctx.currencyResult.buyPriceEUR += buyPriceEUR;
     ctx.currencyResult.sellPriceEUR += sellPriceEUR;
     if (fifoAmount.source.Type == "CASH_TRD" && amount >= fifoAmount.amount && Math.abs(fifoAmount.source.Fee) > 0) {
       // only last one pays fee
       ctx.currencyResult.buyFeeEUR += fifoAmount.source.Fee / getEURUDChangeByDate(fifoAmount.source, ctx);
-      helpers.currency("  --> buyFeeEUR = " + Math.abs(fifoAmount.source.Fee).toFixed(2).toString() + "/" + getEURUDChangeByDate(x, ctx) + " = " + (fifoAmount.source.Fee / getEURUDChangeByDate(fifoAmount.source, ctx)) + " EUR");
+      helpers.currency("[        ]  --> buyFeeEUR = " + Math.abs(fifoAmount.source.Fee).toFixed(2).toString() + "/" + getEURUDChangeByDate(x, ctx) + " = " + (fifoAmount.source.Fee / getEURUDChangeByDate(fifoAmount.source, ctx)) + " EUR");
     }
-    helpers.currency("  --> P/G = " + sellPriceEUR.toFixed(2).toString() + "-" + buyPriceEUR.toFixed(2).toString() + " = " + (sellPriceEUR - buyPriceEUR) + " EUR");
+    helpers.currency("[        ]  --> P/G = " + sellPriceEUR.toFixed(2).toString() + "-" + buyPriceEUR.toFixed(2).toString() + " = " + (sellPriceEUR - buyPriceEUR) + " EUR");
     return;
   }
   const printOperationResult = (x, y, sharesX, sharesY, msg, ctx) => {
@@ -274,9 +278,9 @@ const run = async () => {
     }
     const movDate = Math.max(x.Date, y.Date);
     msg = msg.replace("Stock", x.Type == "OPT_TRD" ? "Opciones" : "Acciones");
-    helpers.stock("[" + movDate + "] " + msg + " " + x.Type + "/" + x.Name + ": " + sharesX + "x" + Math.abs(x.Price * x.Mult) + " = " + Math.abs(x.Price * sharesX * x.Mult) + " " + x.Currency + " @ " + getEURUDChangeByDate(x, ctx));
+    helpers.stock("[        ] " + msg + " " + x.Type + "/" + x.Name + ": " + sharesX + "x" + Math.abs(x.Price * x.Mult) + " = " + Math.abs(x.Price * sharesX * x.Mult) + " " + x.Currency + " @ " + getEURUDChangeByDate(x, ctx));
     if (movDate < ctx.startDate || movDate > ctx.endDate) {
-      helpers.stock("  --> Movimiento no incluido en el resultado final");
+      helpers.stock("[        ]  --> Movimiento no incluido en el resultado final");
       return;
     }
 
@@ -297,22 +301,23 @@ const run = async () => {
       ctx.stockResult.sellFeeEUR += sellFeeEUR;
       ctx.stockResult.totalEUR += (sellPriceEUR - buyPriceEUR + buyFeeEUR + sellFeeEUR);
       if (buyPriceEUR + buyFeeEUR > sellPriceEUR - sellFeeEUR) {
-        helpers.warn("      -------> PERDIDA PATRIMONIAL");
+        helpers.warn("[        ]  -------> AVISO: PERDIDA PATRIMONIAL");
       }
     } else {
       helpers.error("[ERROR] Type=" + x.Type);
       return;
     }
-    helpers.stock(`  --> buyPriceEUR = ${Math.abs(x.Price * sharesX * x.Mult).toFixed(2).toString()}/${getEURUDChangeByDate(x, ctx)} = ${buyPriceEUR} EUR`);
-    helpers.stock(`  --> sellPriceEUR = ${Math.abs(y.Price * sharesY * y.Mult).toFixed(2).toString()}/${getEURUDChangeByDate(y, ctx)} = ${sellPriceEUR} EUR`);
-    helpers.stock(`  --> P/G = ${sellPriceEUR.toFixed(2).toString()}-${buyPriceEUR.toFixed(2).toString()}${Math.sign(sellFeeEUR) >= 0 ? "+" : ""}${sellFeeEUR.toFixed(2).toString()}${Math.sign(buyFeeEUR) >= 0 ? "+" : ""}${buyFeeEUR.toFixed(2).toString()} = ${sellPriceEUR - buyPriceEUR + sellFeeEUR + buyFeeEUR} EUR`);
+    helpers.stock(`[        ]  --> buyPriceEUR = ${Math.abs(x.Price * sharesX * x.Mult).toFixed(2).toString()}/${getEURUDChangeByDate(x, ctx)} = ${buyPriceEUR} EUR`);
+    helpers.stock(`[        ]  --> sellPriceEUR = ${Math.abs(y.Price * sharesY * y.Mult).toFixed(2).toString()}/${getEURUDChangeByDate(y, ctx)} = ${sellPriceEUR} EUR`);
+    helpers.stock(`[        ]  --> P/G = ${sellPriceEUR.toFixed(2).toString()}-${buyPriceEUR.toFixed(2).toString()}${Math.sign(sellFeeEUR) >= 0 ? "+" : ""}${sellFeeEUR.toFixed(2).toString()}${Math.sign(buyFeeEUR) >= 0 ? "+" : ""}${buyFeeEUR.toFixed(2).toString()} = ${sellPriceEUR - buyPriceEUR + sellFeeEUR + buyFeeEUR} EUR`);
     return;
   }
   const processMovement = (x, ctx) => {
     if (x.Date > ctx.endDate) {
-      helpers.stock(`[${x.Date}] ${x.Type}/${x.Name}  --> Movimiento futuro, no importado`);
+      helpers.stock(`[${x.Date}] ${x.Type}/${x.Name} --> Movimiento futuro, no importado`);
       return;
     }
+    helpers.notice(`[${x.Date}] [Movimiento importado] ${JSON.stringify(x)}`);
     if (x.Type == "DIV_USD") {
       addDividend(x, ctx);
       addCurrencyFIFO(x, ctx);
